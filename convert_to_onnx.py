@@ -30,7 +30,7 @@ if __name__ == '__main__':
 	                  opset_version=12,          # the ONNX version to export the model to
 	                  do_constant_folding=True,  # whether to execute constant folding for optimization
 	                  input_names = ['left', 'right','flow_init'],   # the model's input names
-	                  output_names = ['output'])
+	                  output_names = ['disp'])
 
 	# Export the model without init_flow (it takes a lot of time)
 	# !! Does not work prior to pytorch 1.12 (confirmed working on pytorch 2.0.0)
@@ -42,7 +42,7 @@ if __name__ == '__main__':
 	                  opset_version=12,          # the ONNX version to export the model to
 	                  do_constant_folding=True,  # whether to execute constant folding for optimization
 	                  input_names = ['left', 'right'],   # the model's input names
-	                  output_names = ['output'])
+	                  output_names = ['disp'])
 
 
 

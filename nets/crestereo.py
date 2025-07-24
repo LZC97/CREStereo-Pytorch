@@ -9,7 +9,8 @@ from .corr import AGCL
 from .attention import PositionEncodingSine, LocalFeatureTransformer
 
 try:
-    autocast = torch.cuda.amp.autocast
+    # autocast = torch.cuda.amp.autocast
+    autocast = torch.amp.autocast
 except:
     # dummy autocast for PyTorch < 1.6
     class autocast:
@@ -94,13 +95,13 @@ class CREStereo(nn.Module):
         cdim = self.context_dim
 
         # run the feature network
-        with autocast(enabled=self.mixed_precision):
+        with autocast('cuda',enabled=self.mixed_precision):
             fmap1, fmap2 = self.fnet([image1, image2])        
         
         fmap1 = fmap1.float()
         fmap2 = fmap2.float()
 
-        with autocast(enabled=self.mixed_precision):
+        with autocast('cuda',enabled=self.mixed_precision):
 
             # 1/4 -> 1/8
             # feature
@@ -179,7 +180,7 @@ class CREStereo(nn.Module):
                     flow_dw16, offset_dw16, small_patch=small_patch
                     )
 
-                with autocast(enabled=self.mixed_precision):
+                with autocast('cuda',enabled=self.mixed_precision):
                     net_dw16, up_mask, delta_flow = self.update_block(
                         net_dw16, inp_dw16, out_corrs, flow_dw16
                     )
@@ -212,7 +213,7 @@ class CREStereo(nn.Module):
                 flow_dw8 = flow_dw8.detach()
                 out_corrs = corr_fn_dw8(flow_dw8, offset_dw8, small_patch=small_patch)
 
-                with autocast(enabled=self.mixed_precision):
+                with autocast('cuda',enabled=self.mixed_precision):
                     net_dw8, up_mask, delta_flow = self.update_block(
                         net_dw8, inp_dw8, out_corrs, flow_dw8
                     )
@@ -245,7 +246,7 @@ class CREStereo(nn.Module):
             flow = flow.detach()
             out_corrs = corr_fn(flow, None, small_patch=small_patch, iter_mode=True)
 
-            with autocast(enabled=self.mixed_precision):
+            with autocast('cuda',enabled=self.mixed_precision):
                 net, up_mask, delta_flow = self.update_block(net, inp, out_corrs, flow)
 
             flow = flow + delta_flow

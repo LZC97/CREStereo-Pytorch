@@ -11,7 +11,7 @@ import yaml
 from tensorboardX import SummaryWriter
 
 from nets import Model
-from dataset import CREStereoDataset
+from dataset import CREStereoDataset, Eth3dDataset
 
 import torch
 import torch.nn as nn
@@ -20,6 +20,8 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, RandomSampler
+
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
 def parse_yaml(file_path: str) -> namedtuple:
@@ -156,7 +158,8 @@ def train_dist(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = CREStereoDataset(args.training_data_path)
+    # dataset = CREStereoDataset(args.training_data_path)
+    dataset = Eth3dDataset(args.training_data_path)
     # dataset = MixDataset("train", 
     #     data_path=args.data["train"]["data_path"],
     #     fields=args.data["train"]["fields"],
@@ -348,7 +351,8 @@ def train(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = CREStereoDataset(args.training_data_path)
+    # dataset = CREStereoDataset(args.training_data_path)
+    dataset = Eth3dDataset(args.training_data_path)
     sampler = RandomSampler(dataset, replacement=False)
     worklog.info(f"Dataset size: {len(dataset)}")
     dataloader = DataLoader(dataset, sampler=sampler, batch_size=args.batch_size*world_size,
@@ -488,5 +492,5 @@ def main(args):
 
 if __name__ == "__main__":
     # train configuration
-    args = parse_yaml("cfgs/train.yaml")
+    args = parse_yaml("./CREStereo-Pytorch/cfgs/train.yaml")
     main(args)

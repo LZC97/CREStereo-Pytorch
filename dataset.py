@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image, ImageEnhance
 
 from torch.utils.data import Dataset
-
+from read_pfm import read_pfm
 
 class Augmentor:
     def __init__(
@@ -30,6 +30,9 @@ class Augmentor:
         random_contrast = np.random.uniform(0.8, 1.2)
         random_gamma = np.random.uniform(0.8, 1.2)
 
+        ch = img.shape[2]
+        if ch == 1:
+            img = img[:,:,0]
         img = Image.fromarray(img)
 
         enhancer = ImageEnhance.Brightness(img)
@@ -39,10 +42,12 @@ class Augmentor:
 
         gamma_map = [
             255 * 1.0 * pow(ele / 255.0, random_gamma) for ele in range(256)
-        ] * 3
+        ] * ch
         img = img.point(gamma_map)  # use PIL's point-function to accelerate this part
 
         img_ = np.array(img)
+        if ch == 1:
+            img_ = img_[...,np.newaxis]
 
         return img_
 
@@ -110,6 +115,7 @@ class Augmentor:
         )
 
         # 2.3) random crop
+        # @TODO: fix error while channel==1
         h, w, c = left_img.shape
         dx = w - self.image_width
         dy = h - self.image_height
@@ -211,5 +217,57 @@ class CREStereoDataset(Dataset):
             "mask": disp_mask,
         }
 
+    def __len__(self):
+        return len(self.imgs)
+
+class Eth3dDataset(Dataset):
+    def __init__(self, root):
+        super().__init__()
+        self.imgs = glob.glob(os.path.join(root, "**/im0.png"), recursive=True)
+        self.augmentor = Augmentor(
+            image_height=384,
+            image_width=512,
+            max_disp=256,
+            scale_min=0.6,
+            scale_max=1.0,
+            seed=0,
+        )
+        self.rng = np.random.RandomState(0)
+
+    def get_disp(self, path):
+        return read_pfm(path)
+
+    def __getitem__(self, index):
+        left_path = self.imgs[index]
+        prefix = left_path[: left_path.rfind("im0.png")]
+        right_path = prefix + "im1.png"
+        disp_path = prefix + "disp0GT.pfm"
+        disp_mask_path = prefix + "mask0nocc.png"
+
+        left_img = cv2.imread(left_path, cv2.IMREAD_COLOR)
+        right_img = cv2.imread(right_path, cv2.IMREAD_COLOR)
+        # left_img = cv2.imread(left_path, cv2.IMREAD_GRAYSCALE)
+        # right_img = cv2.imread(right_path, cv2.IMREAD_GRAYSCALE)
+        # left_img = left_img[..., np.newaxis]
+        # right_img = right_img[..., np.newaxis]
+        disp_mask = cv2.imread(disp_mask_path, cv2.IMREAD_GRAYSCALE)
+        disp_img = self.get_disp(disp_path)
+        disp_img[disp_img == np.inf] = 0
+
+        # augmentaion
+        left_img, right_img, disp_img, disp_mask = self.augmentor(
+            left_img, right_img, disp_img
+        )
+
+        left_img = left_img.transpose(2, 0, 1).astype("uint8")
+        right_img = right_img.transpose(2, 0, 1).astype("uint8")
+
+        return {
+            "left": left_img,
+            "right": right_img,
+            "disparity": disp_img,
+            "mask": disp_mask,
+        }
+    
     def __len__(self):
         return len(self.imgs)
