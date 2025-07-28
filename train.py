@@ -11,7 +11,7 @@ import yaml
 from tensorboardX import SummaryWriter
 
 from nets import Model
-from dataset import CREStereoDataset, Eth3dDataset
+from dataset import DataSetWrapper
 
 import torch
 import torch.nn as nn
@@ -158,8 +158,7 @@ def train_dist(args, world_size):
         start_iters = 0
 
     # datasets
-    # dataset = CREStereoDataset(args.training_data_path)
-    dataset = Eth3dDataset(args.training_data_path)
+    dataset = DataSetWrapper('eth3d', args.training_data_path)
     # dataset = MixDataset("train", 
     #     data_path=args.data["train"]["data_path"],
     #     fields=args.data["train"]["fields"],
@@ -351,8 +350,7 @@ def train(args, world_size):
         start_iters = 0
 
     # datasets
-    # dataset = CREStereoDataset(args.training_data_path)
-    dataset = Eth3dDataset(args.training_data_path)
+    dataset = DataSetWrapper('eth3d', args.training_data_path)
     sampler = RandomSampler(dataset, replacement=False)
     worklog.info(f"Dataset size: {len(dataset)}")
     dataloader = DataLoader(dataset, sampler=sampler, batch_size=args.batch_size*world_size,

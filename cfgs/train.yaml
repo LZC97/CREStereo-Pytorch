@@ -9,7 +9,7 @@ minibatch_per_epoch: 500
 
 loadmodel: ~
 log_dir: "./drive/MyDrive/crestereo/train_log"
-model_save_freq_epoch: 1
+model_save_freq_epoch: 50
 
 max_disp: 256
 image_width: 512

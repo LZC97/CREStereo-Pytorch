@@ -3,6 +3,7 @@ import cv2
 import glob
 import numpy as np
 from PIL import Image, ImageEnhance
+from enum import Enum
 
 from torch.utils.data import Dataset
 from read_pfm import read_pfm
@@ -271,3 +272,17 @@ class Eth3dDataset(Dataset):
     
     def __len__(self):
         return len(self.imgs)
+
+
+class DataSetType(Enum):
+    CRESTREREO = CREStereoDataset
+    ETH3D = Eth3dDataset
+
+def DataSetWrapper(dataset_name: str, data_dir: str):
+    try:
+        dataset_type = DataSetType[dataset_name.upper()]
+        dataset_class = dataset_type.value
+        return dataset_class(data_dir)
+    except:
+      print(f'ERROR: {dataset_name} is not a valid dataset type.')
+      return None
