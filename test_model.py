@@ -3,13 +3,14 @@ import torch.nn.functional as F
 import numpy as np
 import cv2
 from imread_from_url import imread_from_url
+import argparse
+
+import matplotlib.pyplot as plt
 
 from nets import Model
 
-device = 'cuda'
-
 #Ref: https://github.com/megvii-research/CREStereo/blob/master/test.py
-def inference(left, right, model, n_iter=20):
+def inference(left, right, model, device, n_iter=20):
 
 	print("Model Forwarding...")
 	imgL = left.transpose(2, 0, 1)
@@ -42,9 +43,24 @@ def inference(left, right, model, n_iter=20):
 	return pred_disp
 
 if __name__ == '__main__':
-
-	left_img = imread_from_url("https://raw.githubusercontent.com/megvii-research/CREStereo/master/img/test/left.png")
-	right_img = imread_from_url("https://raw.githubusercontent.com/megvii-research/CREStereo/master/img/test/right.png")
+	parser = argparse.ArgumentParser("Test model")
+	parser.add_argument("--model_path", default="models/crestereo_eth3d.pth")
+	parser.add_argument("--mixed_precision", action="store_true")
+	parser.add_argument("--max_disp", default=256)
+	parser.add_argument("--left_img", default=None)
+	parser.add_argument("--right_img", default=None)
+	parser.add_argument("--device", default="cuda", help="Device to run model, cpu or cuda.")
+	args = parser.parse_args()
+	print("test model path: ", args.model_path)
+	
+	if args.left_img is None or args.right_img is None:
+		left_img = imread_from_url("https://raw.githubusercontent.com/megvii-research/CREStereo/master/img/test/left.png")
+		right_img = imread_from_url("https://raw.githubusercontent.com/megvii-research/CREStereo/master/img/test/right.png")
+	else:
+		left_img = cv2.imread(args.left_img, cv2.IMREAD_COLOR)
+		right_img = cv2.imread(args.right_img, cv2.IMREAD_COLOR)
+	assert left_img is not None, "input left image is empty"
+	assert right_img is not None, "input right image is empty"
 
 	in_h, in_w = left_img.shape[:2]
 
@@ -56,14 +72,12 @@ if __name__ == '__main__':
 	imgL = cv2.resize(left_img, (eval_w, eval_h), interpolation=cv2.INTER_LINEAR)
 	imgR = cv2.resize(right_img, (eval_w, eval_h), interpolation=cv2.INTER_LINEAR)
 
-	model_path = "models/crestereo_eth3d.pth"
-
-	model = Model(max_disp=256, mixed_precision=False, test_mode=True)
-	model.load_state_dict(torch.load(model_path), strict=True)
-	model.to(device)
+	model = Model(max_disp=args.max_disp, mixed_precision=args.mixed_precision, test_mode=True)
+	model.load_state_dict(torch.load(args.model_path), strict=False)
+	model.to(args.device)
 	model.eval()
 
-	pred = inference(imgL, imgR, model, n_iter=20)
+	pred = inference(imgL, imgR, model, args.device, n_iter=20)
 
 	t = float(in_w) / float(eval_w)
 	disp = cv2.resize(pred, (in_w, in_h), interpolation=cv2.INTER_LINEAR) * t
@@ -73,10 +87,8 @@ if __name__ == '__main__':
 	disp_vis = cv2.applyColorMap(disp_vis, cv2.COLORMAP_INFERNO)
 
 	combined_img = np.hstack((left_img, disp_vis))
-	cv2.namedWindow("output", cv2.WINDOW_NORMAL)
-	cv2.imshow("output", combined_img)
+	# cv2.namedWindow("output", cv2.WINDOW_NORMAL)
+	# cv2.imshow("output", combined_img)
+	cv2.imshow("output_comb.jpg", combined_img)
 	cv2.imwrite("output.jpg", disp_vis)
-	cv2.waitKey(0)
-
-
-
+	# cv2.waitKey(0)

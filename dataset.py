@@ -31,9 +31,6 @@ class Augmentor:
         random_contrast = np.random.uniform(0.8, 1.2)
         random_gamma = np.random.uniform(0.8, 1.2)
 
-        ch = img.shape[2]
-        if ch == 1:
-            img = img[:,:,0]
         img = Image.fromarray(img)
 
         enhancer = ImageEnhance.Brightness(img)
@@ -43,12 +40,10 @@ class Augmentor:
 
         gamma_map = [
             255 * 1.0 * pow(ele / 255.0, random_gamma) for ele in range(256)
-        ] * ch
+        ] * 3
         img = img.point(gamma_map)  # use PIL's point-function to accelerate this part
 
         img_ = np.array(img)
-        if ch == 1:
-            img_ = img_[...,np.newaxis]
 
         return img_
 
@@ -247,10 +242,6 @@ class Eth3dDataset(Dataset):
 
         left_img = cv2.imread(left_path, cv2.IMREAD_COLOR)
         right_img = cv2.imread(right_path, cv2.IMREAD_COLOR)
-        # left_img = cv2.imread(left_path, cv2.IMREAD_GRAYSCALE)
-        # right_img = cv2.imread(right_path, cv2.IMREAD_GRAYSCALE)
-        # left_img = left_img[..., np.newaxis]
-        # right_img = right_img[..., np.newaxis]
         disp_mask = cv2.imread(disp_mask_path, cv2.IMREAD_GRAYSCALE)
         disp_img = self.get_disp(disp_path)
         disp_img[disp_img == np.inf] = 0
