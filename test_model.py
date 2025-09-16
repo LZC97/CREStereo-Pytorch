@@ -52,6 +52,7 @@ if __name__ == '__main__':
 	parser.add_argument("--device", default="cuda", help="Device to run model, cpu or cuda.")
 	args = parser.parse_args()
 	print("test model path: ", args.model_path)
+	print("device: ", args.device)
 	
 	if args.left_img is None or args.right_img is None:
 		left_img = imread_from_url("https://raw.githubusercontent.com/megvii-research/CREStereo/master/img/test/left.png")
@@ -89,6 +90,6 @@ if __name__ == '__main__':
 	combined_img = np.hstack((left_img, disp_vis))
 	# cv2.namedWindow("output", cv2.WINDOW_NORMAL)
 	# cv2.imshow("output", combined_img)
-	cv2.imshow("output_comb.jpg", combined_img)
+	# cv2.imshow("output_comb.jpg", combined_img)
 	cv2.imwrite("output.jpg", disp_vis)
 	# cv2.waitKey(0)

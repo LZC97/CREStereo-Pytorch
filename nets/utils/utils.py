@@ -23,7 +23,7 @@ def bilinear_sampler(img, coords, mode='bilinear', mask=False):
     
 def coords_grid(batch, ht, wd, device):
     coords = torch.meshgrid(torch.arange(ht, device=device), torch.arange(wd, device=device), indexing='ij')
-    coords = torch.stack(coords[::-1], dim=0).float()
+    coords = torch.stack(coords[::-1], dim=0).float()  # （x, y）, [2, ht, wd]
     return coords[None].repeat(batch, 1, 1, 1)
 
 def manual_pad(x, pady, padx):
@@ -95,6 +95,7 @@ def bilinear_grid_sample(im, grid, align_corners=False):
 
     im_padded = im_padded.view(n, c, -1)
 
+    # [n, c, h*w]
     x0_y0 = (x0 + y0 * padded_w).unsqueeze(1).expand(-1, c, -1)
     x0_y1 = (x0 + y1 * padded_w).unsqueeze(1).expand(-1, c, -1)
     x1_y0 = (x1 + y0 * padded_w).unsqueeze(1).expand(-1, c, -1)

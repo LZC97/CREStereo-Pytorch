@@ -46,6 +46,7 @@ class CREStereo(nn.Module):
         )
 
         # adaptive search
+        # search_num*2 for dx and dy
         self.search_num = 9
         self.conv_offset_16 = nn.Conv2d(
             256, self.search_num * 2, kernel_size=3, stride=1, padding=1
@@ -65,6 +66,7 @@ class CREStereo(nn.Module):
         """ Upsample flow field [H/8, W/8, 2] -> [H, W, 2] using convex combination """
         N, _, H, W = flow.shape
         # print(flow.shape, mask.shape, rate)
+        # [N, 9*rate*rate, H, W] -> [N, 1, 9, rate, rate, H, W]
         mask = mask.view(N, 1, 9, rate, rate, H, W)
         mask = torch.softmax(mask, dim=2)
 
@@ -96,6 +98,8 @@ class CREStereo(nn.Module):
 
         # run the feature network
         with autocast('cuda',enabled=self.mixed_precision):
+            # fmap1: [N, 256, H/4, W/4]
+            # fmap2: [N, 256, H/4, W/4]
             fmap1, fmap2 = self.fnet([image1, image2])        
         
         fmap1 = fmap1.float()
@@ -175,7 +179,7 @@ class CREStereo(nn.Module):
                 else:
                     small_patch = True
 
-                flow_dw16 = flow_dw16.detach()
+                flow_dw16 = flow_dw16.detach()  # only optimize each iteration
                 out_corrs = corr_fn_att_dw16(
                     flow_dw16, offset_dw16, small_patch=small_patch
                     )
@@ -186,7 +190,9 @@ class CREStereo(nn.Module):
                     )
 
                 flow_dw16 = flow_dw16 + delta_flow
+                # 1/16 -> 1/4, fine interpolation using learned weights
                 flow = self.convex_upsample(flow_dw16, up_mask, rate=4)
+                # 1/4 -> 1, efficent and smooth interpolation
                 flow_up = -4 * F.interpolate(
                     flow,
                     size=(4 * flow.shape[2], 4 * flow.shape[3]),
@@ -219,7 +225,9 @@ class CREStereo(nn.Module):
                     )
 
                 flow_dw8 = flow_dw8 + delta_flow
+                # 1/8 -> 1/2
                 flow = self.convex_upsample(flow_dw8, up_mask, rate=4)
+                # 1/2 -> 1
                 flow_up = -2 * F.interpolate(
                     flow,
                     size=(2 * flow.shape[2], 2 * flow.shape[3]),
@@ -250,6 +258,7 @@ class CREStereo(nn.Module):
                 net, up_mask, delta_flow = self.update_block(net, inp, out_corrs, flow)
 
             flow = flow + delta_flow
+            # 1/4 -> 1
             flow_up = -self.convex_upsample(flow, up_mask, rate=4)
             predictions.append(flow_up)
 

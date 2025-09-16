@@ -489,6 +489,9 @@ def main(args):
         train(args, world_size)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser("CREStereo Training")
+    parser.add_argument("--yaml", type=str, default="./CREStereo-Pytorch/cfgs/train.yaml", help="Path to the training yaml config file")
+    args_cmd = parser.parse_args()
     # train configuration
-    args = parse_yaml("./CREStereo-Pytorch/cfgs/train.yaml")
+    args = parse_yaml(args_cmd.yaml)
     main(args)

@@ -111,7 +111,6 @@ class Augmentor:
         )
 
         # 2.3) random crop
-        # @TODO: fix error while channel==1
         h, w, c = left_img.shape
         dx = w - self.image_width
         dy = h - self.image_height

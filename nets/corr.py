@@ -41,10 +41,10 @@ class AGCL:
             for w in range(0, padx * 2 + 1, di_x):
                 right_crop = right_pad[:, :, h : h + H, w : w + W]
                 assert right_crop.shape == left_feature.shape
-                corr = torch.mean(left_feature * right_crop, dim=1, keepdims=True)
+                corr = torch.mean(left_feature * right_crop, dim=1, keepdims=True)  # [N, 1, H, W]
                 corr_list.append(corr)
 
-        corr_final = torch.cat(corr_list, dim=1)
+        corr_final = torch.cat(corr_list, dim=1)  # [N, psize, H, W]
 
         return corr_final
 
@@ -55,14 +55,14 @@ class AGCL:
         right_feature = bilinear_sampler(right_feature, coords)
 
         if small_patch:
-            psize_list = [(3, 3), (3, 3), (3, 3), (3, 3)]
+            psize_list = [(3, 3), (3, 3), (3, 3), (3, 3)]  # 4 groups
             dilate_list = [(1, 1), (1, 1), (1, 1), (1, 1)]
         else:
             psize_list = [(1, 9), (1, 9), (1, 9), (1, 9)]
             dilate_list = [(1, 1), (1, 1), (1, 1), (1, 1)]
 
         N, C, H, W = left_feature.shape
-        lefts = torch.split(left_feature, left_feature.shape[1]//4, dim=1)
+        lefts = torch.split(left_feature, left_feature.shape[1]//4, dim=1)  # group
         rights = torch.split(right_feature, right_feature.shape[1]//4, dim=1)
 
         corrs = []
@@ -72,7 +72,7 @@ class AGCL:
             )
             corrs.append(corr)
 
-        final_corr = torch.cat(corrs, dim=1)
+        final_corr = torch.cat(corrs, dim=1)  # [N, 4*search_num, H, W]
 
         return final_corr
 
@@ -125,7 +125,7 @@ class AGCL:
             offsets = offsets.reshape(2, -1).permute(1, 0)
             for d in sorted((0, 2, 3)):
                 offsets = offsets.unsqueeze(d)
-            offsets = offsets.repeat_interleave(N, dim=0)
+            offsets = offsets.repeat_interleave(N, dim=0)  # [N, grid_size, 1, 1, 2], grid_size == search_num
             offsets = offsets + extra_offset
 
             coords = self.coords + flow  # [N, 2, H, W]
@@ -139,10 +139,10 @@ class AGCL:
             right_feature = right_feature.reshape(N, C, -1, H, W)  # [N, C, search_num, H, W]
             left_feature = left_feature.unsqueeze(2).repeat_interleave(right_feature.shape[2], dim=2)
 
-            corr = torch.mean(left_feature * right_feature, dim=1)
+            corr = torch.mean(left_feature * right_feature, dim=1)  # [N, search_num, H, W]
 
             corrs.append(corr)
 
-        final_corr = torch.cat(corrs, dim=1)
+        final_corr = torch.cat(corrs, dim=1)  # [N, 4*search_num, H, W]
 
         return final_corr
