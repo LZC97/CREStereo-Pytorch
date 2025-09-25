@@ -21,8 +21,6 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, RandomSampler
 
-# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-
 
 def parse_yaml(file_path: str) -> namedtuple:
     """Parse yaml configuration file and return the object in `namedtuple`."""
@@ -145,14 +143,20 @@ def train_dist(args, world_size):
     if chk_path is not None:
         if dist.get_rank() == 0:
             worklog.info(f"loading model: {chk_path}")
-        # map_location=torch.device('cpu') make more balance memory usage
-        state_dict = torch.load(chk_path, map_location=torch.device('cpu'))
-        model.module.load_state_dict(state_dict['state_dict'])
-        optimizer.load_state_dict(state_dict['optim_state_dict'])
-        resume_epoch_idx = state_dict["epoch"]
-        resume_iters = state_dict["iters"]
-        start_epoch_idx = resume_epoch_idx + 1
-        start_iters = resume_iters
+        if isinstance(state_dict, dict) and 'state_dict' in state_dict and 'optim_state_dict' in state_dict:
+            # map_location=torch.device('cpu') make more balance memory usage
+            state_dict = torch.load(chk_path, map_location=torch.device('cpu'))
+            model.module.load_state_dict(state_dict['state_dict'])
+            optimizer.load_state_dict(state_dict['optim_state_dict'])
+            resume_epoch_idx = state_dict["epoch"]
+            resume_iters = state_dict["iters"]
+            start_epoch_idx = resume_epoch_idx + 1
+            start_iters = resume_iters
+        else:
+            state_dict = torch.load(chk_path, map_location=torch.device('cpu'))
+            model.module.load_state_dict(state_dict)
+            start_epoch_idx = 1
+            start_iters = 0
     else:
         start_epoch_idx = 1
         start_iters = 0
@@ -339,12 +343,17 @@ def train(args, world_size):
     if chk_path is not None:
         worklog.info(f"loading model: {chk_path}")
         state_dict = torch.load(chk_path)
-        model.module.load_state_dict(state_dict['state_dict'])
-        optimizer.load_state_dict(state_dict['optim_state_dict'])
-        resume_epoch_idx = state_dict["epoch"]
-        resume_iters = state_dict["iters"]
-        start_epoch_idx = resume_epoch_idx + 1
-        start_iters = resume_iters
+        if isinstance(state_dict, dict) and 'state_dict' in state_dict and 'optim_state_dict' in state_dict:
+            model.module.load_state_dict(state_dict['state_dict'])
+            optimizer.load_state_dict(state_dict['optim_state_dict'])
+            resume_epoch_idx = state_dict["epoch"]
+            resume_iters = state_dict["iters"]
+            start_epoch_idx = resume_epoch_idx + 1
+            start_iters = resume_iters
+        else:
+            model.module.load_state_dict(state_dict)
+            start_epoch_idx = 1
+            start_iters = 0
     else:
         start_epoch_idx = 1
         start_iters = 0
