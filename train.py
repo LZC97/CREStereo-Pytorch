@@ -143,9 +143,9 @@ def train_dist(args, world_size):
     if chk_path is not None:
         if dist.get_rank() == 0:
             worklog.info(f"loading model: {chk_path}")
+        # map_location=torch.device('cpu') make more balance memory usage
+        state_dict = torch.load(chk_path, map_location=torch.device('cpu'))
         if isinstance(state_dict, dict) and 'state_dict' in state_dict and 'optim_state_dict' in state_dict:
-            # map_location=torch.device('cpu') make more balance memory usage
-            state_dict = torch.load(chk_path, map_location=torch.device('cpu'))
             model.module.load_state_dict(state_dict['state_dict'])
             optimizer.load_state_dict(state_dict['optim_state_dict'])
             resume_epoch_idx = state_dict["epoch"]
@@ -153,7 +153,6 @@ def train_dist(args, world_size):
             start_epoch_idx = resume_epoch_idx + 1
             start_iters = resume_iters
         else:
-            state_dict = torch.load(chk_path, map_location=torch.device('cpu'))
             model.module.load_state_dict(state_dict)
             start_epoch_idx = 1
             start_iters = 0
