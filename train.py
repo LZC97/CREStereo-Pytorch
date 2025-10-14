@@ -73,12 +73,18 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8):
     flow_preds[0]: (B, 2, H, W)
     flow_gt: (B, 2, H, W)
     '''
+    if valid is None:
+      valid_pixels = flow_gt.numel()
+    else:
+      valid_pixels = valid.sum()
     n_predictions = len(flow_preds)
     flow_loss = 0.0
     for i in range(n_predictions):
         i_weight = gamma ** (n_predictions - i - 1)
         i_loss = torch.abs(flow_preds[i] - flow_gt)
-        flow_loss += i_weight * (valid.unsqueeze(1) * i_loss).mean()
+        if valid is not None:
+          i_loss = valid.unsqueeze(1) * i_loss
+        flow_loss += i_weight * i_loss.sum() / valid_pixels
 
     return flow_loss
 
