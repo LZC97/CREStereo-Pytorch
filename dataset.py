@@ -216,6 +216,21 @@ class CREStereoDataset(Dataset):
         return len(self.imgs)
 
 class Eth3dDataset(Dataset):
+    """ETH3D Stereo Dataset.
+    The dataset is expected to be organized as follows:
+    root
+        ├── scene_1
+        │   ├── im0.png
+        │   ├── im1.png
+        │   ├── disp0GT.pfm
+        │   └── mask0nocc.png
+        ├── scene_2
+        │   ├── im0.png
+        │   ├── im1.png
+        │   ├── disp0GT.pfm
+        │   └── mask0nocc.png
+        └── ...
+    """
     def __init__(self, root):
         super().__init__()
         self.imgs = glob.glob(os.path.join(root, "**/im0.png"), recursive=True)

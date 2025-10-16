@@ -1,11 +1,12 @@
 seed: 0
 mixed_precision: True
-base_lr: 1.0e-4
+base_lr: 2.0e-4
+use_cosine_annealing_warmup_lr: True
 
 nr_gpus: 8
-batch_size: 4
+batch_size: 2
 n_total_epoch: 600
-minibatch_per_epoch: 500
+minibatch_per_epoch: 20
 
 loadmodel: ~
 log_dir: "./drive/MyDrive/crestereo/train_log"

@@ -12,6 +12,7 @@ from tensorboardX import SummaryWriter
 
 from nets import Model
 from dataset import DataSetWrapper
+from optimizer import ConsinAnnealingWarmupRestartsWithDecay as CAWRDLRScheduler
 
 import torch
 import torch.nn as nn
@@ -111,7 +112,9 @@ def train_dist(args, world_size):
     # sync batch norm
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(local_rank)
     model = DDP(model, device_ids=[local_rank], output_device=local_rank)
-    optimizer = optim.Adam(model.parameters(), lr=0.1, betas=(0.9, 0.999))
+    optimizer = optim.Adam(model.parameters(), lr=args.base_lr, betas=(0.9, 0.999))
+    if args.use_cosine_annealing_warmup_lr:
+        lr_scheduler = CAWRDLRScheduler(optimizer, T_0=150, T_mult=1, eta_min=1e-6, T_warmup=40, gamma=0.9)
 
     if dist.get_rank() == 0:
         # tensorboard
@@ -186,8 +189,11 @@ def train_dist(args, world_size):
     for epoch_idx in range(start_epoch_idx, args.n_total_epoch + 1):
         dataloader.sampler.set_epoch(epoch_idx)
         # adjust learning rate
-        epoch_total_train_loss = 0     
-        adjust_learning_rate(optimizer, epoch_idx)
+        epoch_total_train_loss = 0
+        if args.use_cosine_annealing_warmup_lr:
+            lr_scheduler.step(epoch_idx)
+        else:     
+            adjust_learning_rate(optimizer, epoch_idx)
         model.train()
 
         t1 = time.perf_counter()
@@ -312,7 +318,9 @@ def train(args, world_size):
     )
     model = nn.DataParallel(model,device_ids=[i for i in range(world_size)])
     model.cuda()
-    optimizer = optim.Adam(model.parameters(), lr=0.1, betas=(0.9, 0.999))
+    optimizer = optim.Adam(model.parameters(), lr=args.base_lr, betas=(0.9, 0.999))
+    if args.use_cosine_annealing_warmup_lr:
+        lr_scheduler = CAWRDLRScheduler(optimizer, T_0=150, T_mult=1, eta_min=1e-6, T_warmup=40, gamma=0.9)
 
     tb_log = SummaryWriter(os.path.join(args.log_dir, "train.events"))
 
@@ -379,7 +387,10 @@ def train(args, world_size):
 
         # adjust learning rate
         epoch_total_train_loss = 0
-        adjust_learning_rate(optimizer, epoch_idx)
+        if args.use_cosine_annealing_warmup_lr:
+            lr_scheduler.step(epoch_idx)
+        else:
+            adjust_learning_rate(optimizer, epoch_idx)
         model.train()
 
         t1 = time.perf_counter()
