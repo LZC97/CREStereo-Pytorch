@@ -161,18 +161,22 @@ class Augmentor:
 
 
 class CREStereoDataset(Dataset):
-    def __init__(self, root):
+    def __init__(self, root, image_height=384, image_width=512, max_disp=256, train_mode=True):
         super().__init__()
         self.imgs = glob.glob(os.path.join(root, "**/*_left.jpg"), recursive=True)
+        self.image_height = image_height
+        self.image_width = image_width
+        self.max_disp = max_disp
         self.augmentor = Augmentor(
-            image_height=384,
-            image_width=512,
-            max_disp=256,
+            image_height=image_height,
+            image_width=image_width,
+            max_disp=max_disp,
             scale_min=0.6,
             scale_max=1.0,
             seed=0,
         )
         self.rng = np.random.RandomState(0)
+        self.train_mode = train_mode
 
     def get_disp(self, path):
         disp = cv2.imread(path, cv2.IMREAD_UNCHANGED)
@@ -197,10 +201,18 @@ class CREStereoDataset(Dataset):
             left_disp, right_disp = np.fliplr(right_disp), np.fliplr(left_disp)
         left_disp[left_disp == np.inf] = 0
 
-        # augmentaion
-        left_img, right_img, left_disp, disp_mask = self.augmentor(
-            left_img, right_img, left_disp
-        )
+        if self.train_mode:
+            # augmentaion
+            left_img, right_img, left_disp, disp_mask = self.augmentor(
+                left_img, right_img, left_disp
+            )
+        else:
+            # validation mode
+            left_img = cv2.resize(left_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            right_img = cv2.resize(right_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            left_disp = cv2.resize(left_disp, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            resize_x_scale = float(self.image_width) / left_disp.shape[1]
+            disp_mask = (left_disp < float(self.max_disp) * resize_x_scale) & (left_disp > 0).astype("float32")
 
         left_img = left_img.transpose(2, 0, 1).astype("uint8")
         right_img = right_img.transpose(2, 0, 1).astype("uint8")
@@ -231,18 +243,22 @@ class Eth3dDataset(Dataset):
         │   └── mask0nocc.png
         └── ...
     """
-    def __init__(self, root):
+    def __init__(self, root, image_height=384, image_width=512, max_disp=256, train_mode=True):
         super().__init__()
         self.imgs = glob.glob(os.path.join(root, "**/im0.png"), recursive=True)
+        self.image_height = image_height
+        self.image_width = image_width
+        self.max_disp = max_disp
         self.augmentor = Augmentor(
-            image_height=384,
-            image_width=512,
-            max_disp=256,
+            image_height=image_height,
+            image_width=image_width,
+            max_disp=max_disp,
             scale_min=0.6,
             scale_max=1.0,
             seed=0,
         )
         self.rng = np.random.RandomState(0)
+        self.train_mode = train_mode
 
     def get_disp(self, path):
         return read_pfm(path)
@@ -260,10 +276,18 @@ class Eth3dDataset(Dataset):
         disp_img = self.get_disp(disp_path)
         disp_img[disp_img == np.inf] = 0
 
-        # augmentaion
-        left_img, right_img, disp_img, disp_mask = self.augmentor(
-            left_img, right_img, disp_img
-        )
+        if self.train_mode:
+            # augmentaion
+            left_img, right_img, disp_img, disp_mask = self.augmentor(
+                left_img, right_img, disp_img
+            )
+        else:
+            # validation mode
+            left_img = cv2.resize(left_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            right_img = cv2.resize(right_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            disp_img = cv2.resize(disp_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            disp_mask = cv2.resize(disp_mask, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            disp_mask = (disp_mask > 0).astype("float32")
 
         left_img = left_img.transpose(2, 0, 1).astype("uint8")
         right_img = right_img.transpose(2, 0, 1).astype("uint8")
@@ -283,11 +307,18 @@ class DataSetType(Enum):
     CRESTREREO = CREStereoDataset
     ETH3D = Eth3dDataset
 
-def DataSetWrapper(dataset_name: str, data_dir: str):
+def DataSetWrapper(
+        dataset_name: str, 
+        data_dir: str,
+        image_height: int = 384,
+        image_width: int = 512,
+        max_disp: int = 256,
+        train_mode: bool = True):
     try:
         dataset_type = DataSetType[dataset_name.upper()]
         dataset_class = dataset_type.value
-        return dataset_class(data_dir)
+        return dataset_class(root=data_dir, image_height=image_height, image_width=image_width, 
+                             max_disp=max_disp, train_mode=train_mode)
     except:
       print(f'ERROR: {dataset_name} is not a valid dataset type.')
       return None

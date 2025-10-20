@@ -1,7 +1,6 @@
 from pathlib import Path
 import numpy as np
 import struct
-import cv2
 
 def read_pfm(filename):
     with Path(filename).open('rb') as pfm_file:
