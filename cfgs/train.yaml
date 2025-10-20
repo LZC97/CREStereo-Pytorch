@@ -1,5 +1,5 @@
 seed: 0
-mixed_precision: True
+mixed_precision: False
 base_lr: 2.0e-4
 use_cosine_annealing_warmup_lr: True
 

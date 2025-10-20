@@ -31,7 +31,8 @@ def parse_yaml(file_path: str) -> namedtuple:
     # save cfg into train_log
     ensure_dir(args.log_dir)
     dst_file = os.path.join(args.log_dir, file_path.split('/')[-1])
-    shutil.copy2(file_path, dst_file)    
+    shutil.copy2(file_path, dst_file)
+    print("parse yaml: ", args)
     return args
 
 
@@ -170,7 +171,11 @@ def train_dist(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = DataSetWrapper('eth3d', args.training_data_path)
+    dataset = DataSetWrapper(dataset_name='eth3d', 
+        data_dir=args.training_data_path, 
+        image_height=args.image_height, 
+        image_width=args.image_width,
+        max_disp=args.max_disp)
     # dataset = MixDataset("train", 
     #     data_path=args.data["train"]["data_path"],
     #     fields=args.data["train"]["fields"],
@@ -372,7 +377,11 @@ def train(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = DataSetWrapper('eth3d', args.training_data_path)
+    dataset = DataSetWrapper(dataset_name='eth3d', 
+        data_dir=args.training_data_path, 
+        image_height=args.image_height, 
+        image_width=args.image_width,
+        max_disp=args.max_disp)
     sampler = RandomSampler(dataset, replacement=False)
     worklog.info(f"Dataset size: {len(dataset)}")
     dataloader = DataLoader(dataset, sampler=sampler, batch_size=args.batch_size*world_size,
