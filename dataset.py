@@ -210,8 +210,8 @@ class CREStereoDataset(Dataset):
             # validation mode
             left_img = cv2.resize(left_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
             right_img = cv2.resize(right_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
-            left_disp = cv2.resize(left_disp, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
             resize_x_scale = float(self.image_width) / left_disp.shape[1]
+            left_disp = cv2.resize(left_disp, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)*resize_x_scale
             disp_mask = (left_disp < float(self.max_disp) * resize_x_scale) & (left_disp > 0).astype("float32")
 
         left_img = left_img.transpose(2, 0, 1).astype("uint8")
@@ -285,7 +285,8 @@ class Eth3dDataset(Dataset):
             # validation mode
             left_img = cv2.resize(left_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
             right_img = cv2.resize(right_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
-            disp_img = cv2.resize(disp_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
+            resize_x_scale = float(self.image_width) / float(disp_mask.shape[1])
+            disp_img = cv2.resize(disp_img, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)*resize_x_scale
             disp_mask = cv2.resize(disp_mask, (self.image_width, self.image_height), interpolation=cv2.INTER_LINEAR)
             disp_mask = (disp_mask > 0).astype("float32")
 
