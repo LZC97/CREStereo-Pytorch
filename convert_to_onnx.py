@@ -7,8 +7,8 @@ from nets import Model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Convert model to ONNX format")
-    parser.add_argument("--output_path", type=str, default="./crestereo.onnx", help="Path to the output ONNX file")
     parser.add_argument("--model_path", type=str, default="models/crestereo_eth3d.pth", help="Path to the model file")
+    parser.add_argument("--output_path", type=str, default="./crestereo.onnx", help="Path to the output ONNX file")
     parser.add_argument("--input_height", type=int, default=480, help="Input image height")
     parser.add_argument("--input_width", type=int, default=640, help="Input image width")
     parser.add_argument("--opset_version", type=int, default=12, help="ONNX opset version")
