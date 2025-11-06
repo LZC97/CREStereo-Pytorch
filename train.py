@@ -13,6 +13,7 @@ from tensorboardX import SummaryWriter
 from nets import Model
 from dataset import DataSetWrapper
 from optimizer import ConsinAnnealingWarmupRestartsWithDecay as CAWRDLRScheduler
+from optimizer import LinearWarmupConstLinearDecay as LWCLDScheduler
 
 import torch
 import torch.nn as nn
@@ -47,27 +48,6 @@ def format_time(elapse):
 def ensure_dir(path):
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
-
-
-def adjust_learning_rate(optimizer, epoch):
-
-    warm_up = 0.02
-    const_range = 0.6
-    min_lr_rate = 0.05
-
-    if epoch <= args.n_total_epoch * warm_up:
-        lr = (1 - min_lr_rate) * args.base_lr / (
-            args.n_total_epoch * warm_up
-        ) * epoch + min_lr_rate * args.base_lr
-    elif args.n_total_epoch * warm_up < epoch <= args.n_total_epoch * const_range:
-        lr = args.base_lr
-    else:
-        lr = (min_lr_rate - 1) * args.base_lr / (
-            (1 - const_range) * args.n_total_epoch
-        ) * epoch + (1 - min_lr_rate * const_range) / (1 - const_range) * args.base_lr
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8):
     '''
@@ -116,6 +96,9 @@ def train_dist(args, world_size):
     optimizer = optim.Adam(model.parameters(), lr=args.base_lr, betas=(0.9, 0.999))
     if args.use_cosine_annealing_warmup_lr:
         lr_scheduler = CAWRDLRScheduler(optimizer, T_0=150, T_mult=1, eta_min=1e-6, T_warmup=40, gamma=0.9)
+    else:
+        lr_scheduler = LWCLDScheduler(optimizer, warm_up=0.02, const_range=0.6, min_lr_rate=0.05, base_lr=args.base_lr,
+                                      total_epoch=args.n_total_epoch)
 
     if dist.get_rank() == 0:
         # tensorboard
@@ -158,6 +141,8 @@ def train_dist(args, world_size):
         if isinstance(state_dict, dict) and 'state_dict' in state_dict and 'optim_state_dict' in state_dict:
             model.module.load_state_dict(state_dict['state_dict'])
             optimizer.load_state_dict(state_dict['optim_state_dict'])
+            if 'lr_scheduler_state_dict' in state_dict:
+                lr_scheduler.load_state_dict(state_dict['lr_scheduler_state_dict'])
             resume_epoch_idx = state_dict["epoch"]
             resume_iters = state_dict["iters"]
             start_epoch_idx = resume_epoch_idx + 1
@@ -171,12 +156,12 @@ def train_dist(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = DataSetWrapper(dataset_name='eth3d', 
-        data_dir=args.training_data_path, 
-        image_height=args.image_height, 
+    dataset = DataSetWrapper(dataset_name='eth3d',
+        data_dir=args.training_data_path,
+        image_height=args.image_height,
         image_width=args.image_width,
         max_disp=args.max_disp)
-    # dataset = MixDataset("train", 
+    # dataset = MixDataset("train",
     #     data_path=args.data["train"]["data_path"],
     #     fields=args.data["train"]["fields"],
     #     filelists=args.data["train"]["filelists"],
@@ -184,7 +169,7 @@ def train_dist(args, world_size):
     if dist.get_rank() == 0:
         worklog.info(f"Dataset size: {len(dataset)}")
     train_sampler = torch.utils.data.distributed.DistributedSampler(dataset)
-    dataloader = torch.utils.data.DataLoader(dataset, 
+    dataloader = torch.utils.data.DataLoader(dataset,
         batch_size=args.batch_size, num_workers=4, sampler=train_sampler)
 
     # counter
@@ -195,10 +180,7 @@ def train_dist(args, world_size):
         dataloader.sampler.set_epoch(epoch_idx)
         # adjust learning rate
         epoch_total_train_loss = 0
-        if args.use_cosine_annealing_warmup_lr:
-            lr_scheduler.step(epoch_idx)
-        else:     
-            adjust_learning_rate(optimizer, epoch_idx)
+        lr_scheduler.step(epoch_idx)
         model.train()
 
         t1 = time.perf_counter()
@@ -303,6 +285,7 @@ def train_dist(args, world_size):
                 "train_loss": epoch_total_train_loss / args.minibatch_per_epoch,
                 "state_dict": model.module.state_dict(),
                 "optim_state_dict": optimizer.state_dict(),
+                "lr_scheduler_state_dict": lr_scheduler.state_dict(),
             }
             torch.save(ckp_data, os.path.join(log_model_dir, "latest.pth"))
             if epoch_idx % args.model_save_freq_epoch == 0:
@@ -326,6 +309,9 @@ def train(args, world_size):
     optimizer = optim.Adam(model.parameters(), lr=args.base_lr, betas=(0.9, 0.999))
     if args.use_cosine_annealing_warmup_lr:
         lr_scheduler = CAWRDLRScheduler(optimizer, T_0=150, T_mult=1, eta_min=1e-6, T_warmup=40, gamma=0.9)
+    else:
+        lr_scheduler = LWCLDScheduler(optimizer, warm_up=0.02, const_range=0.6, min_lr_rate=0.05, base_lr=args.base_lr,
+                                      total_epoch=args.n_total_epoch)
 
     tb_log = SummaryWriter(os.path.join(args.log_dir, "train.events"))
 
@@ -364,6 +350,8 @@ def train(args, world_size):
         if isinstance(state_dict, dict) and 'state_dict' in state_dict and 'optim_state_dict' in state_dict:
             model.module.load_state_dict(state_dict['state_dict'])
             optimizer.load_state_dict(state_dict['optim_state_dict'])
+            if 'lr_scheduler_state_dict' in state_dict:
+                lr_scheduler.load_state_dict(state_dict['lr_scheduler_state_dict'])
             resume_epoch_idx = state_dict["epoch"]
             resume_iters = state_dict["iters"]
             start_epoch_idx = resume_epoch_idx + 1
@@ -377,9 +365,9 @@ def train(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = DataSetWrapper(dataset_name='eth3d', 
-        data_dir=args.training_data_path, 
-        image_height=args.image_height, 
+    dataset = DataSetWrapper(dataset_name='eth3d',
+        data_dir=args.training_data_path,
+        image_height=args.image_height,
         image_width=args.image_width,
         max_disp=args.max_disp)
     sampler = RandomSampler(dataset, replacement=False)
@@ -396,10 +384,7 @@ def train(args, world_size):
 
         # adjust learning rate
         epoch_total_train_loss = 0
-        if args.use_cosine_annealing_warmup_lr:
-            lr_scheduler.step(epoch_idx)
-        else:
-            adjust_learning_rate(optimizer, epoch_idx)
+        lr_scheduler.step(epoch_idx)
         model.train()
 
         t1 = time.perf_counter()
@@ -502,6 +487,7 @@ def train(args, world_size):
             "train_loss": epoch_total_train_loss / args.minibatch_per_epoch,
             "state_dict": model.module.state_dict(),
             "optim_state_dict": optimizer.state_dict(),
+            "lr_scheduler_state_dict": lr_scheduler.state_dict(),
         }
         torch.save(ckp_data, os.path.join(log_model_dir, "latest.pth"))
         if epoch_idx % args.model_save_freq_epoch == 0:
