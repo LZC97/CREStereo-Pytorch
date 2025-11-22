@@ -11,7 +11,7 @@ import yaml
 from tensorboardX import SummaryWriter
 
 from nets import Model
-from dataset import DataSetWrapper
+from dataset import DataSetWrapper, MixedDataset
 from optimizer import ConsinAnnealingWarmupRestartsWithDecay as CAWRDLRScheduler
 from optimizer import LinearWarmupConstLinearDecay as LWCLDScheduler
 
@@ -128,10 +128,10 @@ def train_dist(args, world_size):
 
     # load pretrained model if exist
     chk_path = os.path.join(log_model_dir, "latest.pth")
-    if args.loadmodel is not None:
-        chk_path = args.loadmodel
-    elif not os.path.exists(chk_path):
+    if not os.path.exists(chk_path):
         chk_path = None
+        if args.loadmodel is not None and os.path.exists(args.loadmodel):
+            chk_path = args.loadmodel
 
     if chk_path is not None:
         if dist.get_rank() == 0:
@@ -156,16 +156,24 @@ def train_dist(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = DataSetWrapper(dataset_name='eth3d',
-        data_dir=args.training_data_path,
-        image_height=args.image_height,
-        image_width=args.image_width,
-        max_disp=args.max_disp)
-    # dataset = MixDataset("train",
-    #     data_path=args.data["train"]["data_path"],
-    #     fields=args.data["train"]["fields"],
-    #     filelists=args.data["train"]["filelists"],
-    #     input_size=(args.data["train"]["input_size"][0], args.data["train"]["input_size"][1]))
+    use_mixed_dataset = True
+    if use_mixed_dataset:
+        dataset_roots = {
+            "ETH3D": args.training_data_path,
+            "InStereo2k": args.training_data_path,
+        }
+        dataset = MixedDataset(dataset_roots=dataset_roots,
+            image_height=args.image_height,
+            image_width=args.image_width,
+            max_disp=args.max_disp,
+            train_mode=True)
+    else:
+        dataset = DataSetWrapper(dataset_name='eth3d',
+            data_dir=args.training_data_path,
+            image_height=args.image_height,
+            image_width=args.image_width,
+            max_disp=args.max_disp)
+
     if dist.get_rank() == 0:
         worklog.info(f"Dataset size: {len(dataset)}")
     train_sampler = torch.utils.data.distributed.DistributedSampler(dataset)
@@ -339,10 +347,10 @@ def train(args, world_size):
 
     # load pretrained model if exist
     chk_path = os.path.join(log_model_dir, "latest.pth")
-    if args.loadmodel is not None:
-        chk_path = args.loadmodel
-    elif not os.path.exists(chk_path):
+    if not os.path.exists(chk_path):
         chk_path = None
+        if args.loadmodel is not None and os.path.exists(args.loadmodel):
+            chk_path = args.loadmodel
 
     if chk_path is not None:
         worklog.info(f"loading model: {chk_path}")
@@ -365,11 +373,23 @@ def train(args, world_size):
         start_iters = 0
 
     # datasets
-    dataset = DataSetWrapper(dataset_name='eth3d',
-        data_dir=args.training_data_path,
-        image_height=args.image_height,
-        image_width=args.image_width,
-        max_disp=args.max_disp)
+    use_mixed_dataset = True
+    if use_mixed_dataset:
+        dataset_roots = {
+            "ETH3D": args.training_data_path,
+            "InStereo2k": args.training_data_path,
+        }
+        dataset = MixedDataset(dataset_roots=dataset_roots,
+            image_height=args.image_height,
+            image_width=args.image_width,
+            max_disp=args.max_disp,
+            train_mode=True)
+    else:
+        dataset = DataSetWrapper(dataset_name='eth3d',
+            data_dir=args.training_data_path,
+            image_height=args.image_height,
+            image_width=args.image_width,
+            max_disp=args.max_disp)
     sampler = RandomSampler(dataset, replacement=False)
     worklog.info(f"Dataset size: {len(dataset)}")
     dataloader = DataLoader(dataset, sampler=sampler, batch_size=args.batch_size*world_size,

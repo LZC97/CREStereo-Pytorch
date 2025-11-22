@@ -4,7 +4,7 @@ import tqdm
 import torch
 from nets import Model
 from torch.utils.data import DataLoader
-from dataset import DataSetWrapper
+from dataset import DataSetWrapper, MixedDataset
 from test_model import load_model
 
 def inference(left, right, model, n_iter=20):
@@ -36,20 +36,32 @@ if __name__ == '__main__':
 
     model = load_model(args.model_path, args.device, max_disp=args.max_disp, mixed_precision=args.mixed_precision)
 
-    dataset = DataSetWrapper(dataset_name=args.dataset_name, 
-                             data_dir=args.data_path,
-                             image_height=args.image_height,
-                             image_width=args.image_width,
-                             max_disp=args.max_disp,
-                             train_mode=False)
+    use_mixed_dataset = True
+    if use_mixed_dataset:
+        dataset_roots = {
+            "ETH3D": args.data_path,
+        }
+        dataset = MixedDataset(dataset_roots=dataset_roots,
+            image_height=args.image_height,
+            image_width=args.image_width,
+            max_disp=args.max_disp,
+            train_mode=False)
+    else:
+        dataset = DataSetWrapper(dataset_name=args.dataset_name,
+            data_dir=args.data_path,
+            image_height=args.image_height,
+            image_width=args.image_width,
+            max_disp=args.max_disp,
+            train_mode=False)
+
     if dataset is None:
         print("Failed to load dataset.")
         exit(-1)
-    
+
     total_samples = len(dataset)
     print(f"Dataset size: {total_samples}")
 
-    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=args.num_workers, 
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=args.num_workers,
                              drop_last=False, pin_memory=True)
 
     epe = []
@@ -63,7 +75,7 @@ if __name__ == '__main__':
             disp_gt = data["disparity"].to(args.device)
             valid_mask = data["mask"].to(args.device)
             disp_pred = inference(left_img, right_img, model, n_iter=args.n_iter)
-            
+
             error = torch.abs(disp_pred - disp_gt) * valid_mask
             valid_pixels = valid_mask.sum()
             epe_sample = error.sum() / valid_pixels
