@@ -12,6 +12,7 @@ if __name__ == '__main__':
     parser.add_argument("--input_height", type=int, default=480, help="Input image height")
     parser.add_argument("--input_width", type=int, default=640, help="Input image width")
     parser.add_argument("--opset_version", type=int, default=12, help="ONNX opset version")
+    parser.add_argument("--optimize", action='store_true', help="Whether to optimize the ONNX model")
     args = parser.parse_args()
 
     model_path = args.model_path
@@ -50,3 +51,12 @@ if __name__ == '__main__':
                       do_constant_folding=True,  # whether to execute constant folding for optimization
                       input_names = ['left', 'right'],   # the model's input names
                       output_names = ['disp'])
+    print(f"Model exported to {args.output_path}")
+
+    if args.optimize:
+        # @note: Netron cannot visualize the default model graph
+        from onnxruntime.transformers import optimizer
+        optimized_model_path = args.output_path.replace('.onnx', '_optimized.onnx')
+        optimized_model = optimizer.optimize_model(input=args.output_path)
+        optimized_model.save_model_to_file(optimized_model_path)
+        print(f"Optimized model saved to {optimized_model_path}")
