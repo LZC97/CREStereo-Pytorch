@@ -13,6 +13,7 @@ if __name__ == '__main__':
     parser.add_argument("--input_width", type=int, default=640, help="Input image width")
     parser.add_argument("--opset_version", type=int, default=12, help="ONNX opset version")
     parser.add_argument("--optimize", action='store_true', help="Whether to optimize the ONNX model")
+    parser.add_argument("--fp16", action='store_true', help="Whether to export the model in FP16 precision")
     args = parser.parse_args()
 
     model_path = args.model_path
@@ -53,10 +54,27 @@ if __name__ == '__main__':
                       output_names = ['disp'])
     print(f"Model exported to {args.output_path}")
 
+    pre_model_path = args.output_path
     if args.optimize:
         # @note: Netron cannot visualize the default model graph
         from onnxruntime.transformers import optimizer
         optimized_model_path = args.output_path.replace('.onnx', '_optimized.onnx')
-        optimized_model = optimizer.optimize_model(input=args.output_path)
+        optimized_model = optimizer.optimize_model(input=pre_model_path)
         optimized_model.save_model_to_file(optimized_model_path)
         print(f"Optimized model saved to {optimized_model_path}")
+        pre_model_path = optimized_model_path
+
+    if args.fp16:
+        from onnx import load_model, save_model, checker
+        from onnxconverter_common.float16 import convert_float_to_float16
+        model_fp32 = load_model(pre_model_path)
+        model_fp16 = convert_float_to_float16(model_fp32, keep_io_types=True)
+        fp16_model_path = pre_model_path.replace('.onnx', '_fp16.onnx')
+        save_model(model_fp16, fp16_model_path)
+        print(f"FP16 model saved to {fp16_model_path}")
+        # check fp16 model
+        try:
+            checker.check_model(model_fp16)
+            print("FP16 model check passed.")
+        except Exception as e:
+            print("FP16 model check failed:", e)
