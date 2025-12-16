@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import cv2
-from imread_from_url import imread_from_url
 import argparse
 import time
 import onnxruntime as ort
@@ -181,6 +180,7 @@ if __name__ == '__main__':
     print("device: ", args.device)
     
     if args.left_img is None or args.right_img is None:
+        from imread_from_url import imread_from_url
         left_img = imread_from_url("https://raw.githubusercontent.com/megvii-research/CREStereo/master/img/test/left.png")
         right_img = imread_from_url("https://raw.githubusercontent.com/megvii-research/CREStereo/master/img/test/right.png")
     else:
@@ -191,20 +191,22 @@ if __name__ == '__main__':
     
     in_h, in_w = left_img.shape[:2]
 
-    if args.img_width is not None and args.img_height is not None:
-      eval_h, eval_w = int(args.img_height), int(args.img_width)
-    else:
-      eval_h, eval_w = (in_h, in_w)
-
-    assert eval_h%8 == 0, "input height should be divisible by 8"
-    assert eval_w%8 == 0, "input width should be divisible by 8"
-
     if args.model_path.endswith('.onnx'):
         model = ONNXModel(args.model_path, provider=args.device)
-    else:
+        eval_w, eval_h = model.get_input_shape()
+    elif args.model_path.endswith('.pth'):
+        if args.img_width is not None and args.img_height is not None:
+          eval_h, eval_w = int(args.img_height), int(args.img_width)
+        else:
+          eval_h, eval_w = (in_h, in_w)
+        assert eval_h%8 == 0, "input height should be divisible by 8"
+        assert eval_w%8 == 0, "input width should be divisible by 8"
+
         model = PytorchModel(args.model_path, device=args.device, max_disp=args.max_disp,
                              mixed_precision=args.mixed_precision, input_width=eval_w, 
                              input_height=eval_h, n_iter=10)
+    else:
+        raise RuntimeError("Unsupported model file format!")
 
     start_time = time.time()
     pred = model.inference(left_img, right_img, preprocess=True)
