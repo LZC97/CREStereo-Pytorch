@@ -19,8 +19,9 @@ if __name__ == '__main__':
     parser.add_argument("--mixed_precision", action="store_true", help="Use mixed precision for inference")
     parser.add_argument("--num_workers", default=1, type=int, help="Number of workers for data loading")
     parser.add_argument("--n_iter", default=10, type=int, help="Number of iterations for model inference")
-    parser.add_argument("--device", default="cuda", type=str, help="Device to run Pytorch model, cpu or cuda. " \
-                                                            "Or Provider for ONNX Runtime: cpu, cuda, tensorrt")
+    parser.add_argument("--device", default="cuda", type=str,
+                        help="Device to run Pytorch model, cpu or cuda. "
+                             "Or Provider for ONNX Runtime: cpu, cuda, tensorrt")
     args = parser.parse_args()
 
     print("Model path:", args.model_path)

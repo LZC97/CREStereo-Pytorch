@@ -11,7 +11,7 @@ if __name__ == '__main__':
     parser.add_argument("--output_path", type=str, default="./crestereo.onnx", help="Path to the output ONNX file")
     parser.add_argument("--input_height", type=int, default=480, help="Input image height")
     parser.add_argument("--input_width", type=int, default=640, help="Input image width")
-    parser.add_argument("--opset_version", type=int, default=12, help="ONNX opset version")
+    parser.add_argument("--opset_version", type=int, default=17, help="ONNX opset version")
     parser.add_argument("--optimize", action='store_true', help="Whether to optimize the ONNX model")
     parser.add_argument("--fp16", action='store_true', help="Whether to export the model in FP16 precision")
     args = parser.parse_args()
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     # flow_init = torch.rand(1, 2, args.input_height//2, args.input_width//2)
 
     # # Export the model
-    # torch.onnx.export(model,               
+    # torch.onnx.export(model,
     #                   (t1, t2, flow_init),
     #                   "crestereo.onnx",   # where to save the model (can be a file or file-like object)
     #                   export_params=True,        # store the trained parameter weights inside the model file
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     # Export the model without init_flow (it takes a lot of time)
     # !! Does not work prior to pytorch 1.12 (confirmed working on pytorch 2.0.0)
     # Ref: https://github.com/pytorch/pytorch/pull/73760
-    torch.onnx.export(model,               
+    torch.onnx.export(model,
                       (t1, t2),
                       args.output_path,   # where to save the model (can be a file or file-like object)
                       export_params=True,        # store the trained parameter weights inside the model file
@@ -59,22 +59,41 @@ if __name__ == '__main__':
         # @note: Netron cannot visualize the default model graph
         from onnxruntime.transformers import optimizer
         optimized_model_path = args.output_path.replace('.onnx', '_optimized.onnx')
-        optimized_model = optimizer.optimize_model(input=pre_model_path)
+        optimized_model = optimizer.optimize_model(
+            input=pre_model_path,
+            model_type='generic')
         optimized_model.save_model_to_file(optimized_model_path)
         print(f"Optimized model saved to {optimized_model_path}")
         pre_model_path = optimized_model_path
 
-    if args.fp16:
-        from onnx import load_model, save_model, checker
-        from onnxconverter_common.float16 import convert_float_to_float16
-        model_fp32 = load_model(pre_model_path)
-        model_fp16 = convert_float_to_float16(model_fp32, keep_io_types=True)
-        fp16_model_path = pre_model_path.replace('.onnx', '_fp16.onnx')
-        save_model(model_fp16, fp16_model_path)
-        print(f"FP16 model saved to {fp16_model_path}")
-        # check fp16 model
-        try:
-            checker.check_model(model_fp16)
-            print("FP16 model check passed.")
-        except Exception as e:
-            print("FP16 model check failed:", e)
+        if args.fp16:
+            optimized_model.convert_float_to_float16(keep_io_types=True)
+            optimized_fp16_model_path = optimized_model_path.replace('.onnx', '_fp16.onnx')
+            optimized_model.save_model_to_file(optimized_fp16_model_path)
+            print(f"FP16 model saved to {optimized_fp16_model_path}")
+            pre_model_path = optimized_fp16_model_path
+
+    # if args.fp16:
+    #     from onnx import load_model, save_model, checker
+    #     from onnxconverter_common.float16 import convert_float_to_float16
+    #     model_fp32 = load_model(pre_model_path)
+    #     model_fp16 = convert_float_to_float16(model_fp32, keep_io_types=True)
+    #     fp16_model_path = pre_model_path.replace('.onnx', '_fp16.onnx')
+    #     save_model(model_fp16, fp16_model_path)
+    #     print(f"FP16 model saved to {fp16_model_path}")
+    #     # check fp16 model
+    #     try:
+    #         checker.check_model(model_fp16)
+    #         print("FP16 model check passed.")
+    #     except Exception as e:
+    #         print("FP16 model check failed:", e)
+
+    # if args.fp16:
+    #     from onnx import load_model, save_model
+    #     from onnxmltools.utils import float16_converter
+    #     model_fp32 = load_model(pre_model_path)
+    #     model_fp16 = float16_converter.convert_float_to_float16(model_fp32, keep_io_types=True)
+    #     fp16_model_path = pre_model_path.replace('.onnx', '_fp16.onnx')
+    #     save_model(model_fp16, fp16_model_path)
+    #     print(f"FP16 model saved to {fp16_model_path}")
+    #     pre_model_path = fp16_model_path
