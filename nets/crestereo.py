@@ -34,7 +34,7 @@ class CREStereo(nn.Module):
         self.context_dim = 128
         self.dropout = 0
 
-        self.fnet = BasicEncoder(output_dim=256, norm_fn='instance', dropout=self.dropout)  
+        self.fnet = BasicEncoder(output_dim=256, norm_fn='instance', dropout=self.dropout)
         self.update_block = BasicUpdateBlock(hidden_dim=self.hidden_dim, cor_planes=4 * 9, mask_size=4)
 
         # loftr
@@ -48,9 +48,15 @@ class CREStereo(nn.Module):
         # adaptive search
         # search_num*2 for dx and dy
         self.search_num = 9
+        # conv_offset_16: generates adaptive search offsets at 1/16 resolution
+        # Input:  (B, 256, H/16, W/16) from fmap1_dw16
+        # Output: (B, 18, H/16, W/16)  [9 search points * 2 (dx, dy)]
         self.conv_offset_16 = nn.Conv2d(
             256, self.search_num * 2, kernel_size=3, stride=1, padding=1
         )
+        # conv_offset_8: generates adaptive search offsets at 1/8 resolution
+        # Input:  (B, 256, H/8, W/8) from fmap1_dw8
+        # Output: (B, 18, H/8, W/8)   [9 search points * 2 (dx, dy)]
         self.conv_offset_8 = nn.Conv2d(
             256, self.search_num * 2, kernel_size=3, stride=1, padding=1
         )
@@ -70,11 +76,11 @@ class CREStereo(nn.Module):
         mask = mask.view(N, 1, 9, rate, rate, H, W)
         mask = torch.softmax(mask, dim=2)
 
-        up_flow = F.unfold(rate * flow, [3,3], padding=1)
+        up_flow = F.unfold(rate * flow, [3,3], padding=1) # get 3x3 neighbors, [N, 2*3*3, H, W]
         up_flow = up_flow.view(N, 2, 9, 1, 1, H, W)
 
-        up_flow = torch.sum(mask * up_flow, dim=2)
-        up_flow = up_flow.permute(0, 1, 4, 2, 5, 3)
+        up_flow = torch.sum(mask * up_flow, dim=2)  # [N, 2, rate, rate, H, W]
+        up_flow = up_flow.permute(0, 1, 4, 2, 5, 3)  # [N, 2, H, rate, W, rate]
         return up_flow.reshape(N, 2, rate*H, rate*W)
 
     def zero_init(self, fmap):
@@ -100,8 +106,8 @@ class CREStereo(nn.Module):
         with autocast('cuda',enabled=self.mixed_precision):
             # fmap1: [N, 256, H/4, W/4]
             # fmap2: [N, 256, H/4, W/4]
-            fmap1, fmap2 = self.fnet([image1, image2])        
-        
+            fmap1, fmap2 = self.fnet([image1, image2])
+
         fmap1 = fmap1.float()
         fmap2 = fmap2.float()
 
@@ -114,12 +120,12 @@ class CREStereo(nn.Module):
 
             # offset
             offset_dw8 = self.conv_offset_8(fmap1_dw8)
-            offset_dw8 = self.range_8 * (torch.sigmoid(offset_dw8) - 0.5) * 2.0
+            offset_dw8 = self.range_8 * (torch.sigmoid(offset_dw8) - 0.5) * 2.0  # normalize to range [-range_8, range_8]
 
             # context
             net, inp = torch.split(fmap1, [hdim,hdim], dim=1)
-            net = torch.tanh(net)
-            inp = F.relu(inp)
+            net = torch.tanh(net)  # for update block gru hidden state
+            inp = F.relu(inp)  # for update block motion feature
             net_dw8 = F.avg_pool2d(net, 2, stride=2)
             inp_dw8 = F.avg_pool2d(inp, 2, stride=2)
 

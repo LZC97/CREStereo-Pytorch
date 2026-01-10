@@ -170,14 +170,14 @@ class PytorchModel(StereoModel):
 
 
 class ONNXModel(StereoModel):
-    def __init__(self, model_path: str, provider: str = 'cuda'):
+    def __init__(self, model_path: str, provider: str = 'cuda', thread_num: int = None):
         super().__init__(model_path, input_width=0, input_height=0)
         self.provider = provider.lower()
         assert self.provider in ['cpu', 'cuda', 'tensorrt'], "Provider must be 'cpu', 'cuda', or 'tensorrt'"
         self.session = None
         self.input_names = None
         self.output_names = None
-
+        self.thread_num = thread_num
         self._load_model()
         self._get_input_output_info()
 
@@ -228,6 +228,13 @@ class ONNXModel(StereoModel):
             config = self._get_provider_config()
             sess_options = ort.SessionOptions()
             # sess_options.log_severity_level = 0
+            if self.thread_num is not None:
+                # Thread configuration affects CPU provider performance significantly.
+                # intra_op_num_threads: threads within a single operator (e.g., matrix multiplication)
+                # inter_op_num_threads: threads across different operators (parallel execution)
+                print(f"Setting thread number to {self.thread_num}")
+                sess_options.intra_op_num_threads = self.thread_num
+                sess_options.inter_op_num_threads = self.thread_num
             self.session = ort.InferenceSession(
                 self.model_path,
                 providers=config['providers'],
@@ -318,16 +325,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser("Test model")
     parser.add_argument("--model_path", default="models/crestereo_eth3d.pth",
                         help="Path to trained model file, .pth or .onnx")
-    parser.add_argument("--mixed_precision", action="store_true")
-    parser.add_argument("--max_disp", default=256)
-    parser.add_argument("--left_img", default=None)
-    parser.add_argument("--right_img", default=None)
-    parser.add_argument("--img_width", default=None, help="Image witdth of model input")
-    parser.add_argument("--img_height", default=None, help="Image height of model input")
-    parser.add_argument("--inference_num", default=1, help="Number of inference iterations")
+    parser.add_argument("--max_disp", type=int, default=256, help="Maximum disparity value")
+    parser.add_argument("--mixed_precision", action="store_true",
+                        help="Use mixed precision for PyTorch model inference")
+    parser.add_argument("--left_img", default=None, help="Path to left stereo image")
+    parser.add_argument("--right_img", default=None, help="Path to right stereo image")
+    parser.add_argument("--img_width", type=int, default=None, help="Image width of model input")
+    parser.add_argument("--img_height", type=int, default=None, help="Image height of model input")
     parser.add_argument("--device", default="cuda",
                         help="Device to run pytorch model, cpu or cuda. "
                              "Or Provider for ONNX Runtime: cpu, cuda, tensorrt")
+    parser.add_argument("--thread_num", type=int, default=None,
+                        help="Number of cpu threads for ONNX Runtime")
+    parser.add_argument("--inference_num", type=int, default=1, help="Number of inference iterations")
     args = parser.parse_args()
     print("test model path: ", args.model_path)
     print("device: ", args.device)
@@ -345,7 +355,7 @@ if __name__ == '__main__':
     in_h, in_w = left_img.shape[:2]
 
     if args.model_path.endswith('.onnx'):
-        model = ONNXModel(args.model_path, provider=args.device)
+        model = ONNXModel(args.model_path, provider=args.device, thread_num=args.thread_num)
         eval_w, eval_h = model.get_input_shape()
     elif args.model_path.endswith('.pth'):
         if args.img_width is not None and args.img_height is not None:

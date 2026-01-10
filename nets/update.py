@@ -30,14 +30,14 @@ class SepConvGRU(nn.Module):
         hx = torch.cat([h, x], dim=1)
         z = torch.sigmoid(self.convz1(hx))
         r = torch.sigmoid(self.convr1(hx))
-        q = torch.tanh(self.convq1(torch.cat([r*h, x], dim=1)))        
+        q = torch.tanh(self.convq1(torch.cat([r*h, x], dim=1)))
         h = (1-z) * h + z * q
 
         # vertical
         hx = torch.cat([h, x], dim=1)
         z = torch.sigmoid(self.convz2(hx))
         r = torch.sigmoid(self.convr2(hx))
-        q = torch.tanh(self.convq2(torch.cat([r*h, x], dim=1)))       
+        q = torch.tanh(self.convq2(torch.cat([r*h, x], dim=1)))
         h = (1-z) * h + z * q
 
         return h
@@ -46,7 +46,7 @@ class SepConvGRU(nn.Module):
 class BasicMotionEncoder(nn.Module):
     def __init__(self, cor_planes):
         super(BasicMotionEncoder, self).__init__()
-        
+
         self.convc1 = nn.Conv2d(cor_planes, 256, 1, padding=0)
         self.convc2 = nn.Conv2d(256, 192, 3, padding=1)
         self.convf1 = nn.Conv2d(2, 128, 7, padding=3)
@@ -78,7 +78,7 @@ class BasicUpdateBlock(nn.Module):
             nn.Conv2d(256, mask_size**2 *9, 1, padding=0))
 
     def forward(self, net, inp, corr, flow, upsample=True):
-        # inp: context feature
+        # net, inp: input context feature
         # print(inp.shape, corr.shape, flow.shape)
         motion_features = self.encoder(flow, corr)
         # print(motion_features.shape, inp.shape)
@@ -88,6 +88,7 @@ class BasicUpdateBlock(nn.Module):
         net = self.gru(net, inp)
         delta_flow = self.flow_head(net)
 
-        # scale mask to balence gradients
+        # mask: mask for convex upsampling flow field
+        # scale mask to balance gradients
         mask = .25 * self.mask(net)
         return net, mask, delta_flow

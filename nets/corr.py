@@ -118,7 +118,7 @@ class AGCL:
 
             ry = psizey // 2 * dilatey
             rx = psizex // 2 * dilatex
-            x_grid, y_grid = torch.meshgrid(torch.arange(-rx, rx + 1, dilatex, device=self.fmap1.device), 
+            x_grid, y_grid = torch.meshgrid(torch.arange(-rx, rx + 1, dilatex, device=self.fmap1.device),
                                     torch.arange(-ry, ry + 1, dilatey, device=self.fmap1.device), indexing='xy')
 
             offsets = torch.stack((x_grid, y_grid))
@@ -130,7 +130,7 @@ class AGCL:
 
             coords = self.coords + flow  # [N, 2, H, W]
             coords = coords.permute(0, 2, 3, 1)  # [N, H, W, 2]
-            coords = torch.unsqueeze(coords, 1) + offsets
+            coords = torch.unsqueeze(coords, 1) + offsets  # [N, search_num, H, W, 2]
             coords = coords.reshape(N, -1, W, 2)  # [N, search_num*H, W, 2]
 
             right_feature = bilinear_sampler(
